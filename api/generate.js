@@ -23,8 +23,8 @@ export default async function handler(req, res) {
       ]
     }`;
 
-    // 💡 gemini-1.5-pro-latest 로 이름 변경
-    const geminiRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro-latest:generateContent?key=${GEMINI_API_KEY}`, {
+    // 💡 가장 안정적인 gemini-1.5-flash 모델로 변경 완료
+    const geminiRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
