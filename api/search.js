@@ -11,10 +11,9 @@ export default async function handler(req, res) {
   }
 
   try {
-    // 1. 네이버 모바일 블로그 검색 페이지로 직접 접속 (크롤링)
     const searchUrl = `https://m.blog.naver.com/PostSearchList.naver?blogId=${blogId}&searchText=${encodeURIComponent(query)}`;
     
-    // 모바일 기기인 척 속여서 페이지를 요청 (User-Agent 필수)
+    // 모바일 환경으로 위장하여 네이버 블로그 검색 페이지 요청
     const response = await fetch(searchUrl, {
       headers: { 
         'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 15_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.0 Mobile/15E148 Safari/604.1'
@@ -22,11 +21,21 @@ export default async function handler(req, res) {
     });
     
     const html = await response.text();
+
+    // 💡 핵심 수정 1: 진짜로 검색 결과가 없는 경우를 가장 먼저 걸러냅니다. (네이버의 '검색결과가 없습니다' 텍스트 감지)
+    if (html.includes('검색결과가 없습니다') || html.includes('검색 결과가 없습니다')) {
+      return res.status(200).json({
+        blogId,
+        total: 0,
+        hasResults: false,
+        items: []
+      });
+    }
+
     const items = [];
     const uniqueLogNos = new Set();
     
-    // 2. 검색 결과 HTML에서 글 번호(logNo)를 정규식으로 추출
-    // 패턴: /blogId/1234567890
+    // 검색 결과가 있을 경우에만 글 번호 추출
     const linkRegex = new RegExp(`\\/${blogId}\\/(\\d{8,15})`, 'g');
     let match;
     
@@ -35,29 +44,28 @@ export default async function handler(req, res) {
       if (!uniqueLogNos.has(logNo)) {
         uniqueLogNos.add(logNo);
         
-        // 3. 추출한 글 번호를 이용해 실제 블로그 포스팅 링크 생성
         items.push({
           title: `[악보] ${query} - 포스팅 바로가기`,
           link: `https://blog.naver.com/${blogId}/${logNo}`,
-          description: '클릭하여 해당 블로그에서 악보를 바로 확인하세요.',
+          description: '해당 블로그에서 검색된 악보 포스팅입니다.',
           postdate: ''
         });
       }
-      if (items.length >= 5) break; // 화면이 길어지지 않게 5개까지만 추출
+      if (items.length >= 5) break; 
     }
 
-    // 4. ★최후의 보루★ 결과가 없거나 크롤링이 안 먹힐 때
-    // 무조건 '결과 없음' 대신 블로그 검색창으로 다이렉트로 쏴주는 링크 생성
+    // 💡 핵심 수정 2: 억지로 결과를 띄우는 가짜 다이렉트 링크 로직을 완전히 삭제했습니다.
+    // 추출된 아이템이 0개라면 정직하게 결과 없음 처리
     if (items.length === 0) {
-      items.push({
-        title: `👉 '${query}' 악보 검색 결과 직접 확인하기`,
-        link: searchUrl,
-        description: '클릭하시면 해당 블로그의 악보 검색 화면으로 즉시 이동합니다.',
-        postdate: ''
+      return res.status(200).json({
+        blogId,
+        total: 0,
+        hasResults: false,
+        items: []
       });
     }
 
-    // 네이버 API를 안 쓰므로 무조건 화면에 띄우기 위해 hasResults: true 반환
+    // 진짜 결과가 있을 때만 반환
     return res.status(200).json({
       blogId,
       total: items.length,
@@ -66,17 +74,6 @@ export default async function handler(req, res) {
     });
 
   } catch (error) {
-    // 5. 서버 에러 발생 시에도 앱이 멈추지 않고 다이렉트 링크 제공
-    return res.status(200).json({
-      blogId,
-      total: 1,
-      hasResults: true,
-      items: [{
-        title: `👉 '${query}' 악보 검색 결과 직접 확인하기`,
-        link: `https://m.blog.naver.com/PostSearchList.naver?blogId=${blogId}&searchText=${encodeURIComponent(query)}`,
-        description: '네이버 연결이 지연되었습니다. 클릭하시면 악보 검색 화면으로 바로 이동합니다.',
-        postdate: ''
-      }]
-    });
+    return res.status(500).json({ error: error.message });
   }
 }
