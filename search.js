@@ -18,13 +18,22 @@ export default async function handler(req, res) {
   const CLIENT_SECRET = process.env.NAVER_CLIENT_SECRET;
 
   try {
-    // 💡 핵심 수정: 네이버 고급 검색 문법 (site:) 적용
-    // 예: "은혜 악보 site:blog.naver.com/0909junseo"
-    // 이렇게 하면 네이버가 정확히 해당 블로그 내부에서만 곡을 뒤집니다.
-    const optimizedQuery = `${query} 악보 site:blog.naver.com/${blogId}`;
+    // 💡 해결책: 네이버 API는 site: 문법을 지원하지 않음. 
+    // 대신 블로그 고유의 '이름(닉네임)'을 검색어에 강제로 붙여서 해당 블로그 글을 Top 100으로 끌어올림!
+    const blogKeywords = {
+      '0909junseo': '준서',
+      'wkdghks38811': '찬양',
+      'relishsky': '릴리쉬스카이',
+      'jskyscore': '제이스카이'
+    };
+
+    const keyword = blogKeywords[blogId] || '';
+    
+    // 곡 제목은 반드시 포함되도록 쌍따옴표("")로 묶고, 뒤에 악보와 블로그 이름을 붙임
+    const optimizedQuery = keyword ? `"${query}" 악보 ${keyword}` : `"${query}" 악보`;
     const searchQuery = encodeURIComponent(optimizedQuery);
     
-    // display=100으로 설정하여 해당 블로그의 관련 글을 넉넉하게 끌어옵니다.
+    // 네이버 전체 블로그 중 위 조건에 맞는 글 100개를 쓸어담음
     const apiUrl = `https://openapi.naver.com/v1/search/blog.json?query=${searchQuery}&display=100&sort=sim`;
 
     const response = await fetch(apiUrl, {
@@ -40,7 +49,7 @@ export default async function handler(req, res) {
 
     const data = await response.json();
 
-    // 2차 안전장치: 가져온 결과 중 실제 해당 블로거의 글이 맞는지 링크로 한 번 더 검증
+    // 100개 중에서 진짜 해당 블로그(blogId)의 주소에서 쓴 글만 완벽하게 필터링
     const filtered = (data.items || []).filter(item => 
       (item.link && item.link.includes(blogId)) || 
       (item.bloggerlink && item.bloggerlink.includes(blogId))
@@ -50,9 +59,9 @@ export default async function handler(req, res) {
       blogId,
       total: filtered.length,
       hasResults: filtered.length > 0,
-      // 상위 5개만 깔끔하게 잘라서 화면에 전달
+      // 프론트엔드로는 제일 연관도 높은 상위 5개만 전송
       items: filtered.slice(0, 5).map(item => ({
-        title: item.title.replace(/<[^>]*>/g, ''), // HTML 태그 찌꺼기 완벽 제거
+        title: item.title.replace(/<[^>]*>/g, ''), // 불필요한 HTML 태그 제거
         link: item.link,
         description: item.description.replace(/<[^>]*>/g, ''),
         postdate: item.postdate,
