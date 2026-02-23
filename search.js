@@ -18,10 +18,12 @@ export default async function handler(req, res) {
   const CLIENT_SECRET = process.env.NAVER_CLIENT_SECRET;
 
   try {
-    // 네이버 블로그 검색 API 호출
-    // query에 블로그 ID를 포함시켜 해당 블로그 내 검색
-    const searchQuery = encodeURIComponent(`${query} site:blog.naver.com/${blogId}`);
-    const apiUrl = `https://openapi.naver.com/v1/search/blog.json?query=${searchQuery}&display=5&sort=sim`;
+    // 💡 핵심 수정 1: 정확도를 높이기 위해 검색어 뒤에 '악보' 키워드와 블로그 ID를 함께 검색
+    const optimizedQuery = `${query} 악보 ${blogId}`;
+    const searchQuery = encodeURIComponent(optimizedQuery);
+    
+    // 💡 핵심 수정 2: display=100으로 설정하여 네이버 전체 검색 결과에서 100개를 싹쓸이해옴
+    const apiUrl = `https://openapi.naver.com/v1/search/blog.json?query=${searchQuery}&display=100&sort=sim`;
 
     const response = await fetch(apiUrl, {
       headers: {
@@ -36,17 +38,18 @@ export default async function handler(req, res) {
 
     const data = await response.json();
 
-    // 해당 블로그의 포스팅만 필터링
+    // 💡 핵심 수정 3: 100개의 결과 중, URL에 해당 블로그 ID가 포함된 것만 '진짜 그 블로그 글'로 인정
     const filtered = (data.items || []).filter(item =>
-      item.link && item.link.includes(`blog.naver.com/${blogId}`)
+      item.link && item.link.includes(blogId)
     );
 
     return res.status(200).json({
       blogId,
       total: filtered.length,
       hasResults: filtered.length > 0,
-      items: filtered.map(item => ({
-        title: item.title.replace(/<[^>]*>/g, ''), // HTML 태그 제거
+      // 프론트엔드 화면이 지저분해지지 않게 가장 연관성 높은 상위 5개만 잘라서 전달
+      items: filtered.slice(0, 5).map(item => ({
+        title: item.title.replace(/<[^>]*>/g, ''), // HTML 태그 깔끔하게 제거
         link: item.link,
         description: item.description.replace(/<[^>]*>/g, ''),
         postdate: item.postdate,
