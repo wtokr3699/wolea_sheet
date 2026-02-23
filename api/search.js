@@ -13,7 +13,7 @@ export default async function handler(req, res) {
   try {
     const searchUrl = `https://m.blog.naver.com/PostSearchList.naver?blogId=${blogId}&searchText=${encodeURIComponent(query)}`;
     
-    // 모바일 환경으로 위장하여 네이버 블로그 검색 페이지 요청
+    // 모바일 환경으로 위장하여 접근
     const response = await fetch(searchUrl, {
       headers: { 
         'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 15_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.0 Mobile/15E148 Safari/604.1'
@@ -22,11 +22,11 @@ export default async function handler(req, res) {
     
     const html = await response.text();
 
-    // 💡 핵심 수정 1: 진짜로 검색 결과가 없는 경우를 가장 먼저 걸러냅니다. (네이버의 '검색결과가 없습니다' 텍스트 감지)
+    // 1. 네이버의 '검색결과가 없습니다' 안내 문구가 있으면 즉시 0건 처리
     if (html.includes('검색결과가 없습니다') || html.includes('검색 결과가 없습니다')) {
       return res.status(200).json({
         blogId,
-        total: 0,
+        total: 0, // 정확히 0건
         hasResults: false,
         items: []
       });
@@ -35,7 +35,7 @@ export default async function handler(req, res) {
     const items = [];
     const uniqueLogNos = new Set();
     
-    // 검색 결과가 있을 경우에만 글 번호 추출
+    // 2. 검색 결과가 존재할 경우, 화면에 로딩된 포스팅 고유 번호를 전부 추출
     const linkRegex = new RegExp(`\\/${blogId}\\/(\\d{8,15})`, 'g');
     let match;
     
@@ -45,17 +45,15 @@ export default async function handler(req, res) {
         uniqueLogNos.add(logNo);
         
         items.push({
-          title: `[악보] ${query} - 포스팅 바로가기`,
+          title: `[악보] ${query} - 포스팅 보러가기`,
           link: `https://blog.naver.com/${blogId}/${logNo}`,
           description: '해당 블로그에서 검색된 악보 포스팅입니다.',
           postdate: ''
         });
       }
-      if (items.length >= 5) break; 
     }
 
-    // 💡 핵심 수정 2: 억지로 결과를 띄우는 가짜 다이렉트 링크 로직을 완전히 삭제했습니다.
-    // 추출된 아이템이 0개라면 정직하게 결과 없음 처리
+    // 추출된 아이템이 혹시라도 0개라면 정직하게 결과 없음 처리
     if (items.length === 0) {
       return res.status(200).json({
         blogId,
@@ -65,10 +63,10 @@ export default async function handler(req, res) {
       });
     }
 
-    // 진짜 결과가 있을 때만 반환
+    // 3. 5개 제한 없이 찾아낸 개수(total) 전체를 있는 그대로 반환
     return res.status(200).json({
       blogId,
-      total: items.length,
+      total: items.length, // 1개면 1, 10개면 10
       hasResults: true,
       items: items
     });
