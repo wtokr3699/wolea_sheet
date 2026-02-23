@@ -1,0 +1,799 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>WOLEA AI — 예배인도자 워리어</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700;800&family=Montserrat:wght@700;800;900&display=swap" rel="stylesheet" />
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  * { -webkit-tap-highlight-color: transparent; box-sizing: border-box; }
+  body { font-family: 'Noto Sans KR', sans-serif; margin: 0; padding: 0; background: #f9fafb; overflow: hidden; }
+  .font-brand { font-family: 'Montserrat', sans-serif; }
+  .scrollbar-hide::-webkit-scrollbar { display: none; }
+  .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+  input, textarea, select { font-family: 'Noto Sans KR', sans-serif; }
+  button { cursor: pointer; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .animate-spin { animation: spin 1s linear infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.5} }
+  .animate-pulse { animation: pulse 2s cubic-bezier(.4,0,.6,1) infinite; }
+  @keyframes fade-in { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
+  .fade-in { animation: fade-in 0.3s ease forwards; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const { useState, useEffect, useRef } = React;
+
+/* ─── SVG ICONS ─── */
+const Icon = ({ d, size=24, stroke="#000", fill="none", sw=2, className="" }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill={fill} stroke={stroke} strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round" className={className}>
+    {Array.isArray(d) ? d.map((p,i)=><path key={i} d={p}/>) : <path d={d}/>}
+  </svg>
+);
+const icons = {
+  sparkles: ["M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z","M18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456z"],
+  folder: "M2.25 12.75V12A2.25 2.25 0 014.5 9.75h15A2.25 2.25 0 0121.75 12v.75m-8.69-6.44l-2.12-2.12a1.5 1.5 0 00-1.061-.44H4.5A2.25 2.25 0 002.25 6v12a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9a2.25 2.25 0 00-2.25-2.25h-5.379a1.5 1.5 0 01-1.06-.44z",
+  users: "M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z",
+  music: "M9 9l10.5-3m0 6.553v3.75a2.25 2.25 0 01-1.632 2.163l-1.32.377a1.803 1.803 0 11-.99-3.467l2.31-.66a2.25 2.25 0 001.632-2.163zm0 0V2.25L9 5.25v10.303m0 0v3.75a2.25 2.25 0 01-1.632 2.163l-1.32.377a1.803 1.803 0 01-.99-3.467l2.31-.66A2.25 2.25 0 009 15.553z",
+  user: "M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z",
+  search: "M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z",
+  externalLink: ["M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5","M7.5 3h13.5v13.5","M7.5 16.5L21 3"],
+  bookOpen: ["M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25"],
+  alertCircle: ["M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126z","M12 15.75h.007v.008H12v-.008z"],
+  chevronLeft: "M15.75 19.5L8.25 12l7.5-7.5",
+  loader: "M12 2v4m0 12v4M4.93 4.93l2.83 2.83m8.48 8.48l2.83 2.83M2 12h4m12 0h4M4.93 19.07l2.83-2.83m8.48-8.48l2.83-2.83",
+  trash2: "M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0",
+  share2: "M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z",
+  rotateLeft: "M9 15L3 9m0 0l6-6M3 9h12a6 6 0 010 12h-3",
+  trash: "M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0",
+  bell: "M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75v-.7V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0",
+  settings: "M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 010 .255c-.007.378.138.75.43.99l1.005.828c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 010-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281z M15 12a3 3 0 11-6 0 3 3 0 016 0z",
+  help: "M9.879 7.519c1.171-1.025 3.071-1.025 4.242 0 1.172 1.025 1.172 2.687 0 3.712-.203.179-.43.326-.67.442-.745.361-1.45.999-1.45 1.827v.75M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9 5.25h.008v.008H12v-.008z",
+  info: "M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z",
+  shield: "M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z",
+  logout: "M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15m3 0l3-3m0 0l-3-3m3 3H9",
+  heart: "M21 8.25c0-2.485-2.099-4.5-4.688-4.5-1.935 0-3.597 1.126-4.312 2.733-.715-1.607-2.377-2.733-4.313-2.733C5.1 3.75 3 5.765 3 8.25c0 7.22 9 12 9 12s9-4.78 9-12z",
+  messageCircle: "M8.625 12a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H8.25m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H12m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0h-.375M21 12c0 4.556-4.03 8.25-9 8.25a9.764 9.764 0 01-2.555-.337A5.972 5.972 0 015.41 20.97a5.969 5.969 0 01-.474-.065 4.48 4.48 0 00.978-2.025c.09-.457-.133-.901-.467-1.226C3.93 16.178 3 14.189 3 12c0-4.556 4.03-8.25 9-8.25s9 3.694 9 8.25z",
+  youtube: ["M2.5 17a24.12 24.12 0 010-10 2 2 0 011.4-1.4 49.56 49.56 0 0116.2 0A2 2 0 0121.5 7a24.12 24.12 0 010 10 2 2 0 01-1.4 1.4 49.55 49.55 0 01-16.2 0A2 2 0 012.5 17","M10 15l5-3-5-3z"],
+  fileMusic: ["M9 19a3 3 0 10-6 0 3 3 0 006 0zm0 0V7.5l12-3V16","M9 19H3","M21 13V7.5L9 4.5"],
+  check: "M4.5 12.75l6 6 9-13.5",
+  xMark: "M6 18L18 6M6 6l12 12",
+};
+
+const I = ({ name, size=20, stroke="currentColor", fill="none", sw=1.5, className="" }) => (
+  <Icon d={icons[name]} size={size} stroke={stroke} fill={fill} sw={sw} className={className} />
+);
+
+/* ─── LOGO ─── */
+function Logo({ size="md" }) {
+  const s = { sm:"text-2xl", md:"text-3xl", lg:"text-4xl" }[size];
+  return (
+    <div className="text-center">
+      <h1 className={`${s} font-brand font-black tracking-tight bg-gradient-to-r from-teal-500 to-blue-500 bg-clip-text text-transparent`}>WOLEA</h1>
+      <p className="text-xs text-gray-400 mt-1 tracking-widest uppercase">예배인도자 워리어</p>
+    </div>
+  );
+}
+
+/* ─── CUSTOM ALERT ─── */
+function CustomAlert({ isOpen, onClose, title, message, type="info" }) {
+  if (!isOpen) return null;
+  const colors = { info:"border-blue-400 bg-blue-50", success:"border-teal-400 bg-teal-50", warning:"border-yellow-400 bg-yellow-50", error:"border-red-400 bg-red-50" };
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center px-6" style={{background:"rgba(0,0,0,0.4)"}}>
+      <div className={`bg-white rounded-2xl shadow-2xl w-full max-w-sm border-2 ${colors[type]} overflow-hidden fade-in`}>
+        <div className="p-6">
+          {title && <h3 className="font-bold text-gray-900 mb-2">{title}</h3>}
+          <p className="text-sm text-gray-700 whitespace-pre-line">{message}</p>
+        </div>
+        <div className="border-t border-gray-100 px-6 py-4">
+          <button onClick={onClose} className="w-full py-2.5 bg-gray-900 text-white rounded-xl text-sm font-semibold hover:bg-gray-700 transition-colors">확인</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ─── BOTTOM NAV ─── */
+function BottomNav({ activeTab, onTabChange }) {
+  const tabs = [
+    { id:"ai", icon:"sparkles", label:"AI 콘티" },
+    { id:"setlists", icon:"folder", label:"내 콘티" },
+    { id:"community", icon:"users", label:"커뮤니티" },
+    { id:"music", icon:"music", label:"악보" },
+    { id:"profile", icon:"user", label:"내 정보" },
+  ];
+  return (
+    <nav className="fixed bottom-0 left-0 right-0 z-40" style={{background:"linear-gradient(135deg,#111827,#1f2937)"}}>
+      <div className="h-0.5" style={{background:"linear-gradient(90deg,#14b8a6,#3b82f6,#14b8a6)"}}/>
+      <div className="flex items-center justify-around h-20">
+        {tabs.map(t => {
+          const active = activeTab===t.id;
+          return (
+            <button key={t.id} onClick={()=>onTabChange(t.id)} className="flex flex-col items-center flex-1 h-full justify-center relative">
+              {active && <div className="absolute top-0 left-1/2 -translate-x-1/2 w-10 h-1 rounded-b-full" style={{background:"linear-gradient(90deg,#14b8a6,#3b82f6)"}}/>}
+              <I name={t.icon} size={22} stroke={active?"#fff":"#9ca3af"} className={active?"scale-110":""}/>
+              <span className={`text-xs mt-1 ${active?"text-white font-semibold":"text-gray-400"}`}>{t.label}</span>
+            </button>
+          );
+        })}
+      </div>
+    </nav>
+  );
+}
+
+/* ─── WELCOME SCREEN ─── */
+function WelcomeScreen({ onContinue }) {
+  return (
+    <div className="h-full flex items-center justify-center px-6 relative overflow-hidden" style={{background:"linear-gradient(135deg,#111827,#1f2937,#000)"}}>
+      <div className="absolute top-0 right-0 w-96 h-96 rounded-full blur-3xl" style={{background:"rgba(20,184,166,0.08)"}}/>
+      <div className="absolute bottom-0 left-0 w-96 h-96 rounded-full blur-3xl" style={{background:"rgba(59,130,246,0.08)"}}/>
+      <div className="w-full max-w-md relative z-10 fade-in">
+        <div className="mb-12"><Logo size="lg"/></div>
+        <div className="bg-white/95 backdrop-blur-sm rounded-2xl shadow-2xl p-10 text-center border border-gray-200">
+          <h2 className="text-2xl mb-6 text-gray-900 font-semibold">안녕하세요</h2>
+          <p className="text-base text-gray-600 leading-relaxed mb-10">예배인도자 워리어(Wolea) 여러분,<br/>저는 Wolea.Ai 입니다.</p>
+          <button onClick={onContinue} className="w-full py-4 text-white rounded-xl font-semibold shadow-lg hover:opacity-90 transition-opacity" style={{background:"linear-gradient(135deg,#0d9488,#2563eb)"}}>반갑습니다</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ─── MEDITATION INPUT SCREEN ─── */
+function MeditationInputScreen({ onSubmit }) {
+  const [input, setInput] = useState('');
+  const [error, setError] = useState('');
+  const MIN=20, MAX=1000;
+
+  const validate = (text) => {
+    if (text.length<MIN){setError(`최소 ${MIN}자 이상 입력해주세요.`);return false;}
+    if (text.length>MAX){setError(`최대 ${MAX}자까지만 입력 가능합니다.`);return false;}
+    if (/(.).\1{9,}/.test(text)){setError('올바른 묵상 내용을 입력해주세요.');return false;}
+    const hasKw=/성경|말씀|주님|하나님|예수|찬양|예배|기도|묵상|복음|은혜|사랑|믿음|소망|창세기|출애굽기|시편|잠언|마태복음|요한복음|장|절/.test(text);
+    if (!hasKw&&text.length<50){setError('성경 구절이나 예배 관련 주제를 포함해주세요.');return false;}
+    setError(''); return true;
+  };
+
+  const handleSubmit = () => {
+    const t=input.trim();
+    if (t && validate(t)) onSubmit(t);
+  };
+
+  return (
+    <div className="h-full flex flex-col px-6 py-12 bg-white relative">
+      <div className="absolute top-0 left-0 right-0 h-1" style={{background:"linear-gradient(90deg,#111827,#0d9488,#2563eb)"}}/>
+      <div className="flex-1 flex flex-col max-w-md mx-auto w-full">
+        <div className="mb-8 relative">
+          <div className="absolute -left-4 top-0 bottom-0 w-1 bg-gray-900 rounded-full"/>
+          <h2 className="text-xl mb-4 text-gray-900 font-semibold leading-relaxed">저는 당신의 성경과 찬양 묵상을<br/>대신해주지 않습니다.</h2>
+          <p className="text-base text-gray-600">오늘은 어떤 묵상을 하셨나요?</p>
+          <p className="text-sm text-gray-400 mt-1">성경 구절이나 예배 주제를 포함하여 작성해주세요 (최소 20자 이상)</p>
+        </div>
+        <div className="flex-1 mb-4 relative">
+          <textarea
+            value={input}
+            onChange={e=>{ if(e.target.value.length<=MAX){setInput(e.target.value);setError('');} }}
+            placeholder={"예시:\n\n마태복음 5장 3-10절의 팔복에 대해 묵상했습니다.\n심령이 가난한 자가 복이 있다는 말씀이 마음에 와닿았습니다."}
+            className={`w-full h-full min-h-[280px] px-4 py-4 border-2 ${error?'border-red-400 bg-red-50':'border-gray-900 bg-gray-50'} rounded-xl text-gray-900 placeholder-gray-400 resize-none focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-100 transition-colors`}
+          />
+          <div className="absolute bottom-3 right-3 bg-white/80 backdrop-blur-sm px-2 py-1 rounded text-xs font-medium" style={{color:input.length<MIN?'#ef4444':'#374151'}}>{input.length}/{MAX}</div>
+        </div>
+        {error && (
+          <div className="mb-4 p-3 bg-red-50 border-2 border-red-200 rounded-xl flex items-start gap-2">
+            <I name="alertCircle" size={18} stroke="#dc2626"/>
+            <p className="text-sm text-red-800">{error}</p>
+          </div>
+        )}
+        <button onClick={handleSubmit} disabled={input.length<MIN} className="w-full py-4 bg-gray-900 text-white rounded-xl font-semibold shadow-lg disabled:bg-gray-300 disabled:cursor-not-allowed hover:bg-gray-800 transition-colors">더 깊은 묵상을 위한 제안 받기</button>
+      </div>
+    </div>
+  );
+}
+
+/* ─── MEDITATION GUIDANCE SCREEN ─── */
+function MeditationGuidanceScreen({ onContinue, onBack, countdown, setCountdown, meditationInput }) {
+  const [isGenerating, setIsGenerating] = useState(true);
+  const [content, setContent] = useState('');
+  const isComplete = countdown!==null && countdown<=0;
+
+  useEffect(()=>{
+    if(countdown!==null&&countdown>0){
+      const t=setTimeout(()=>setCountdown(countdown-1),1000);
+      return()=>clearTimeout(t);
+    }
+  },[countdown]);
+
+  useEffect(()=>{
+    setTimeout(()=>{
+      setContent(`묵상 가이드:\n\n${meditationInput||'오늘의 말씀'}을(를) 통해 우리는 하나님의 깊은 뜻을 발견할 수 있습니다.\n\n성경은 우리에게 하나님의 사랑과 은혜가 얼마나 크신지 말씀하고 있습니다. 이 말씀을 통해 우리는 일상에서 하나님의 임재를 경험하고, 그분의 뜻을 따라 살아가도록 부름받았습니다.\n\n오늘 이 시간, 잠시 멈추어 하나님 앞에서 조용히 묵상하며 그분의 음성에 귀 기울여 보십시오.`);
+      setIsGenerating(false);
+    },1500);
+  },[meditationInput]);
+
+  const getVerses = () => {
+    const i=(meditationInput||'').toLowerCase();
+    if(i.includes('팔복')||i.includes('마태복음 5')) return ['마태복음 5장 3-10절 - 팔복','누가복음 6장 20-23절 - 평지 설교의 복','시편 1편 1-3절 - 복 있는 사람'];
+    if(i.includes('찬양')||i.includes('예배')) return ['시편 150편 1-6절 - 할렐루야, 주를 찬양하라','요한복음 4장 23-24절 - 신령과 진정으로 예배','시편 95편 1-7절 - 주께 노래하고 즐거이 부르자'];
+    return ['시편 119편 105절 - 주의 말씀은 내 발에 등이요','잠언 3장 5-6절 - 너는 마음을 다하여 여호와를 신뢰하고','로마서 12장 1-2절 - 너희 몸을 하나님이 기뻐하시는 거룩한 산 제물로'];
+  };
+
+  return (
+    <div className="h-full flex flex-col px-6 py-8 bg-gradient-to-br from-gray-50 to-gray-100 relative overflow-hidden">
+      <button onClick={onBack} className="flex items-center gap-1 text-gray-500 hover:text-gray-900 mb-6 transition-colors">
+        <I name="chevronLeft" size={18} stroke="currentColor"/><span className="text-sm font-medium">뒤로가기</span>
+      </button>
+      <div className="flex-1 overflow-y-auto scrollbar-hide">
+        <div className="max-w-md mx-auto pb-6 space-y-4 fade-in">
+          <div className="bg-white rounded-2xl shadow-lg overflow-hidden border border-gray-200">
+            <div className="px-6 py-3" style={{background:"linear-gradient(135deg,#111827,#1f2937)"}}><p className="text-sm text-white font-semibold">AI 묵상 가이드</p></div>
+            <div className="p-6">
+              {isGenerating ? (
+                <div className="flex items-center justify-center py-8 gap-2">
+                  <I name="loader" size={20} stroke="#0d9488" className="animate-spin"/><span className="text-sm text-gray-500">묵상 내용을 생성하는 중...</span>
+                </div>
+              ) : <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-line">{content}</p>}
+              <p className="text-xs text-gray-400 mt-4 italic border-t pt-4">* 이 내용은 AI가 생성한 참고 자료입니다.</p>
+            </div>
+          </div>
+          <div className="bg-white rounded-2xl shadow-lg overflow-hidden border border-gray-200">
+            <div className="px-6 py-3" style={{background:"linear-gradient(135deg,#111827,#1f2937)"}}><p className="text-sm text-white font-semibold">관련 성경 구절</p></div>
+            <div className="p-6">
+              {getVerses().map((v,i)=>(
+                <p key={i} className="text-sm text-gray-700 leading-relaxed pl-4 border-l-2 border-gray-900 mb-3">{v}</p>
+              ))}
+            </div>
+          </div>
+          <div className="bg-white rounded-2xl shadow-lg p-6 border-2 border-gray-900">
+            <p className="text-sm text-gray-700 mb-4 font-medium">초원(Chowon)에서 더 깊이 묵상하기</p>
+            <a href="https://chowon.in/home" target="_blank" rel="noopener noreferrer" className="block w-full py-3 bg-gray-900 text-white rounded-xl text-sm text-center font-semibold hover:bg-gray-800 transition-colors">초원 앱으로 이동 →</a>
+          </div>
+          <button onClick={onContinue} disabled={!isComplete} className="w-full py-4 text-white rounded-xl font-semibold shadow-lg disabled:opacity-40 disabled:cursor-not-allowed hover:opacity-90 transition-opacity" style={{background:"linear-gradient(135deg,#0d9488,#2563eb)"}}>
+            {isComplete?'계속하기':`묵상 시간: ${countdown}초`}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ─── WORSHIP INFO SCREEN ─── */
+function WorshipInfoScreen({ onSubmit }) {
+  const [f,setF]=useState({serviceType:'',theme:'',congregation:'',duration:'',churchCalendar:'',specialNotes:''});
+  const valid=f.serviceType&&f.theme&&f.duration;
+  return (
+    <div className="h-full px-6 py-12 bg-gradient-to-br from-gray-50 to-gray-100 overflow-y-auto scrollbar-hide">
+      <div className="max-w-md mx-auto pb-6 fade-in">
+        <div className="mb-8 relative"><div className="absolute -left-4 top-0 bottom-0 w-1 bg-gray-900 rounded-full"/><h2 className="text-2xl text-gray-900 font-bold">예배 준비 정보</h2></div>
+        {[
+          { title:'필수 정보', fields:[
+            {label:'예배 유형 *',key:'serviceType',placeholder:'예: 주일예배, 청년예배, 수요예배'},
+            {label:'예배 주제 또는 설교 본문 *',key:'theme',placeholder:'예: 요한복음 3장 16절 - 하나님의 사랑'},
+            {label:'찬양 시간 (분) *',key:'duration',type:'number',placeholder:'20'},
+          ]},
+          { title:'추가 정보 (선택)', fields:[
+            {label:'회중 특성',key:'congregation',placeholder:'예: 대학생 중심, 청장년층'},
+            {label:'교회력/절기',key:'churchCalendar',placeholder:'예: 사순절, 부활절'},
+          ]},
+        ].map(sec=>(
+          <div key={sec.title} className="bg-white rounded-2xl shadow-lg overflow-hidden border border-gray-200 mb-4">
+            <div className="px-6 py-3" style={{background:"linear-gradient(135deg,#111827,#1f2937)"}}><p className="text-sm text-white font-semibold">{sec.title}</p></div>
+            <div className="p-6 space-y-4">
+              {sec.fields.map(fd=>(
+                <div key={fd.key}>
+                  <label className="block text-sm text-gray-700 mb-2 font-medium">{fd.label}</label>
+                  <input type={fd.type||'text'} value={f[fd.key]} onChange={e=>setF({...f,[fd.key]:e.target.value})} placeholder={fd.placeholder} className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl bg-gray-50 text-gray-900 placeholder-gray-400 focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-100 transition-colors"/>
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+        <div className="bg-white rounded-2xl shadow-lg overflow-hidden border border-gray-200 mb-4">
+          <div className="px-6 py-3" style={{background:"linear-gradient(135deg,#1f2937,#374151)"}}><p className="text-sm text-white font-semibold">특별 요청사항</p></div>
+          <div className="p-6"><textarea value={f.specialNotes} onChange={e=>setF({...f,specialNotes:e.target.value})} placeholder="예: 템포가 느린 곡 위주로, 회중이 잘 아는 곡 포함" rows={4} className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl bg-gray-50 text-gray-900 placeholder-gray-400 resize-none focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-100 transition-colors"/></div>
+        </div>
+        <button onClick={()=>valid&&onSubmit(f)} disabled={!valid} className="w-full py-4 bg-gray-900 text-white rounded-xl font-semibold shadow-lg disabled:bg-gray-300 disabled:cursor-not-allowed hover:bg-gray-800 transition-colors">AI 콘티 생성하기</button>
+      </div>
+    </div>
+  );
+}
+
+/* ─── GENERATING SCREEN ─── */
+function GeneratingScreen() {
+  return (
+    <div className="h-full flex items-center justify-center bg-gradient-to-br from-teal-50 to-blue-50">
+      <div className="text-center fade-in">
+        <div className="w-16 h-16 border-4 border-teal-200 border-t-teal-500 rounded-full animate-spin mx-auto mb-6"/>
+        <p className="text-lg text-gray-700 font-medium">Wolea 생각중…</p>
+      </div>
+    </div>
+  );
+}
+
+/* ─── SETLIST RESULT SCREEN ─── */
+const mockSongs = [
+  { order:1, title:'나 주의 도움 받고자', artist:'어노인팅', key:'G', bpm:68, position:'입장/부름', reason:'느린 템포(68 BPM)로 예배를 조용히 시작합니다. 회중이 겸손하게 하나님 앞에 나아오는 마음을 표현합니다.', verse:'시편 121:1-2 - 내가 산을 향하여 눈을 들리라 나의 도움이 어디서 올까', lyrics:'나 주의 도움 받고자 이 자리 왔습니다 / 주의 얼굴 구하고자 이 자리 왔습니다' },
+  { order:2, title:'주 이름 찬양', artist:'어노인팅', key:'G', bpm:82, position:'경배', reason:'중간 템포(82 BPM)로 점차 찬양 분위기를 만듭니다. 같은 G Key로 자연스럽게 이어집니다.', verse:'시편 34:1 - 내가 여호와를 항상 송축함이여', lyrics:'주 이름 찬양하며 경배합니다 / 주 이름 높이며 경배합니다' },
+  { order:3, title:'주님의 마음을', artist:'박종호', key:'F', bpm:68, position:'경배', reason:'다시 느린 템포(68 BPM)로 말씀을 받을 준비를 합니다. G Key에서 F Key로 부드럽게 전환됩니다.', verse:'빌립보서 2:5 - 너희 안에 이 마음을 품으라 곧 그리스도 예수의 마음이니', lyrics:'주님의 마음을 내게 주소서 / 주님의 눈으로 세상을 보게 하소서' },
+  { order:4, title:'내 영혼의 그윽히 깊은 데서', artist:'손경민', key:'Eb', bpm:72, position:'헌신/파송', reason:'중간 템포(72 BPM)로 응답 찬양을 시작합니다. 은혜받은 영혼의 찬양을 표현합니다.', verse:'요한복음 7:38 - 나를 믿는 자는 그 배에서 생수의 강이 흘러나오리라', lyrics:'내 영혼의 그윽히 깊은 데서 / 맑은 시냇물같이 흐르네' },
+  { order:5, title:'나 주님의 기쁨되기 원하네', artist:'예수전도단', key:'D', bpm:80, position:'헌신/파송', reason:'중간 템포(80 BPM)의 헌신 찬양으로 예배를 마무리합니다. 받은 은혜를 삶으로 살아내겠다는 다짐입니다.', verse:'빌립보서 4:4 - 주 안에서 항상 기뻐하라 내가 다시 말하노니 기뻐하라', lyrics:'나 주님의 기쁨되기 원하네 / 주님만 바라보며 살기 원합니다' },
+];
+
+function SetlistResultScreen({ meditationData, worshipData, onStartOver, onRegenerate, onViewSheetMusic, onEditSetlist }) {
+  const [editPrompt,setEditPrompt]=useState('');
+  return (
+    <div className="h-full px-6 py-12 bg-gradient-to-br from-gray-50 to-gray-100 overflow-y-auto scrollbar-hide">
+      <div className="max-w-2xl mx-auto pb-6 fade-in">
+        <div className="mb-8 relative">
+          <div className="absolute -left-4 top-0 bottom-0 w-1 bg-gray-900 rounded-full"/>
+          <h2 className="text-2xl text-gray-900 font-bold">생성된 찬양 콘티</h2>
+          <p className="text-sm text-gray-500 mt-1">총 {mockSongs.length}곡 • 예상 시간 약 {worshipData?.duration||'20'}분</p>
+          <p className="text-xs text-teal-600 mt-1 font-medium">✓ 묵상 주제 반영 • ✓ BPM/Key 분석</p>
+        </div>
+        {meditationData?.input && (
+          <div className="bg-white rounded-2xl shadow-lg overflow-hidden border border-gray-200 mb-6">
+            <div className="px-6 py-3" style={{background:"linear-gradient(135deg,#0d9488,#2563eb)"}}><p className="text-sm text-white font-semibold">묵상 주제</p></div>
+            <div className="p-4"><p className="text-sm text-gray-700">"{meditationData.input}"</p></div>
+          </div>
+        )}
+        <div className="space-y-4 mb-8">
+          {mockSongs.map(song=>(
+            <div key={song.order} className="bg-white rounded-2xl border-2 border-gray-200 p-6 shadow-lg">
+              <div className="flex items-start justify-between mb-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl flex items-center justify-center shadow-md" style={{background:"linear-gradient(135deg,#111827,#374151)"}}><span className="text-white font-bold text-lg">{song.order}</span></div>
+                  <div>
+                    <span className="inline-block px-2 py-1 bg-gray-100 text-gray-700 text-xs rounded-lg font-medium mr-1">{song.position}</span>
+                    <span className="inline-block px-2 py-1 bg-teal-50 text-teal-700 text-xs rounded-lg font-medium">{song.bpm} BPM</span>
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <button onClick={()=>onViewSheetMusic(song.title,song.artist)} className="p-2 border-2 border-gray-200 rounded-xl hover:border-gray-900 transition-colors" title="악보 보기"><I name="fileMusic" size={18} stroke="#374151"/></button>
+                  <a href={`https://open.spotify.com/search/${encodeURIComponent(song.title+' '+song.artist)}`} target="_blank" rel="noopener noreferrer" className="p-2 border-2 border-green-200 rounded-xl hover:border-green-500 transition-colors"><svg width="18" height="18" viewBox="0 0 24 24" fill="#1DB954"><path d="M12 0C5.4 0 0 5.4 0 12s5.4 12 12 12 12-5.4 12-12S18.66 0 12 0zm5.521 17.34c-.24.359-.66.48-1.021.24-2.82-1.74-6.36-2.101-10.561-1.141-.418.122-.779-.179-.899-.539-.12-.421.18-.78.54-.9 4.56-1.021 8.52-.6 11.64 1.32.42.18.479.659.301 1.02zm1.44-3.3c-.301.42-.841.6-1.262.3-3.239-1.98-8.159-2.58-11.939-1.38-.479.12-1.02-.12-1.14-.6-.12-.48.12-1.021.6-1.141C9.6 9.9 15 10.561 18.72 12.84c.361.181.54.78.241 1.2zm.12-3.36C15.24 8.4 8.82 8.16 5.16 9.301c-.6.179-1.2-.181-1.38-.721-.18-.601.18-1.2.72-1.381 4.26-1.26 11.28-1.02 15.721 1.621.539.3.719 1.02.419 1.56-.299.421-1.02.599-1.559.3z"/></svg></a>
+                  <a href={`https://www.youtube.com/results?search_query=${encodeURIComponent(song.title+' '+song.artist)}`} target="_blank" rel="noopener noreferrer" className="p-2 border-2 border-red-100 rounded-xl hover:border-red-400 transition-colors"><I name="youtube" size={18} stroke="#dc2626"/></a>
+                </div>
+              </div>
+              <h3 className="text-lg font-bold text-gray-900 mb-1">{song.title}</h3>
+              <p className="text-sm text-gray-500 mb-3">{song.artist}</p>
+              <div className="mb-4"><span className="px-3 py-1 bg-gray-900 text-white rounded-lg text-sm font-semibold">추천 Key: {song.key}</span></div>
+              <div className="border-t border-gray-100 my-3"/>
+              <div className="mb-3 bg-gray-50 rounded-xl p-4 border-l-4 border-teal-500">
+                <p className="text-xs text-teal-700 font-bold mb-1">가사 일부</p>
+                <p className="text-sm text-gray-700 italic">{song.lyrics}</p>
+              </div>
+              <div className="mb-3">
+                <p className="text-xs font-bold text-gray-900 mb-1">선곡 이유</p>
+                <p className="text-sm text-gray-700 leading-relaxed">{song.reason}</p>
+              </div>
+              <div className="bg-teal-50 rounded-xl p-4 border-l-4 border-gray-900">
+                <p className="text-xs font-bold text-gray-900 mb-1">관련 성경 구절</p>
+                <p className="text-sm text-gray-800">{song.verse}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+        <div className="bg-white rounded-2xl shadow-lg overflow-hidden border border-gray-200 mb-4">
+          <div className="px-6 py-3" style={{background:"linear-gradient(135deg,#1f2937,#374151)"}}><p className="text-sm text-white font-semibold">콘티 수정하기</p></div>
+          <div className="p-6">
+            <div className="flex gap-2">
+              <input type="text" value={editPrompt} onChange={e=>setEditPrompt(e.target.value)} placeholder="예: 템포를 더 빠르게, 회중 찬양 위주로" className="flex-1 px-4 py-3 border-2 border-gray-200 rounded-xl bg-gray-50 text-gray-900 placeholder-gray-400 focus:border-teal-500 focus:outline-none text-sm"/>
+              <button onClick={()=>{if(editPrompt.trim()){onEditSetlist(editPrompt);setEditPrompt('');}}} className="px-5 py-3 bg-gray-900 text-white rounded-xl text-sm font-semibold hover:bg-gray-800 transition-colors">수정</button>
+            </div>
+          </div>
+        </div>
+        <div className="flex gap-3">
+          <button onClick={onRegenerate} className="flex-1 py-4 text-white rounded-xl font-semibold shadow-lg hover:opacity-90 transition-opacity" style={{background:"linear-gradient(135deg,#0d9488,#2563eb)"}}>다시 생성하기</button>
+          <button onClick={onStartOver} className="flex-1 py-4 border-2 border-gray-900 text-gray-900 rounded-xl font-semibold hover:bg-gray-50 transition-colors">처음부터 다시</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ─── MY SETLISTS SCREEN ─── */
+function MySetlistsScreen({ setlists, deletedSetlists, onViewSetlist, onDeleteSetlist, onRestoreSetlist, onPermanentDelete, isLoggedIn }) {
+  const [showTrash,setShowTrash]=useState(false);
+  const getRem=(d)=>{ if(!d)return 0; return Math.max(0,Math.ceil((30*864e5-(Date.now()-d))/864e5)); };
+  return (
+    <div className="h-full bg-gray-50 overflow-y-auto scrollbar-hide">
+      <div className="px-6 py-8 shadow-lg" style={{background:"linear-gradient(135deg,#111827,#1f2937)"}}>
+        <div className="max-w-2xl mx-auto flex justify-between items-center">
+          <h2 className="text-2xl text-white font-bold">내 콘티 저장소</h2>
+          <button onClick={()=>setShowTrash(!showTrash)} className="flex items-center gap-2 px-4 py-2 bg-white/10 border border-white/20 rounded-xl text-sm text-white hover:bg-white/20 transition-colors">
+            <I name="trash" size={16} stroke="#fff"/><span>휴지통{deletedSetlists.length>0&&` (${deletedSetlists.length})`}</span>
+          </button>
+        </div>
+      </div>
+      <div className="px-6 py-6 pb-6">
+        <div className="max-w-2xl mx-auto fade-in">
+          {!isLoggedIn&&setlists.length>0&&<div className="bg-amber-50 border-l-4 border-amber-500 rounded-xl p-4 mb-4 text-sm text-gray-700">⚠️ 비회원 모드: 새로고침 시 삭제됩니다. 로그인 후 영구 저장하세요.</div>}
+          {showTrash ? (
+            <>
+              <button onClick={()=>setShowTrash(false)} className="text-sm text-gray-900 font-medium mb-4 hover:text-teal-600 transition-colors">← 내 콘티로 돌아가기</button>
+              {deletedSetlists.length===0
+                ? <div className="bg-white rounded-2xl border-2 border-gray-200 p-12 text-center"><p className="text-gray-400">휴지통이 비어있습니다</p></div>
+                : deletedSetlists.map(s=>(
+                  <div key={s.id} className="bg-white rounded-2xl border-2 border-gray-200 shadow-sm mb-3 overflow-hidden opacity-75">
+                    <div className="p-5">
+                      <h3 className="font-semibold text-gray-900">{s.theme}</h3>
+                      <p className="text-sm text-gray-400 mt-1">{s.date} • {s.serviceType} • <span className="text-red-500">{getRem(s.deletedAt)}일 후 영구 삭제</span></p>
+                    </div>
+                    <div className="border-t border-gray-100 px-5 py-3 flex gap-3 bg-gray-50">
+                      <button onClick={()=>onRestoreSetlist(s.id)} className="flex-1 flex items-center justify-center gap-2 py-2 bg-gray-900 text-white rounded-xl text-sm font-semibold"><I name="rotateLeft" size={15} stroke="#fff"/>복원</button>
+                      <button onClick={()=>{if(confirm('영구 삭제하시겠습니까?'))onPermanentDelete(s.id);}} className="flex-1 flex items-center justify-center gap-2 py-2 border-2 border-red-500 text-red-500 rounded-xl text-sm font-semibold"><I name="trash2" size={15} stroke="#ef4444"/>영구 삭제</button>
+                    </div>
+                  </div>
+                ))
+              }
+            </>
+          ) : (
+            setlists.length===0
+              ? <div className="bg-white rounded-2xl border-2 border-gray-200 p-12 text-center"><p className="text-gray-400 mb-2">저장된 콘티가 없습니다</p><p className="text-sm text-gray-300">AI 콘티를 생성하면 자동으로 저장됩니다</p></div>
+              : setlists.map(s=>(
+                <div key={s.id} className="bg-white rounded-2xl border-2 border-gray-200 shadow-sm mb-3 overflow-hidden hover:border-gray-900 hover:shadow-lg transition-all">
+                  <div onClick={()=>onViewSetlist(s.id)} className="p-5 cursor-pointer">
+                    <h3 className="font-semibold text-gray-900">{s.theme}</h3>
+                    <p className="text-sm text-gray-400 mt-1">{s.date} • {s.serviceType}</p>
+                  </div>
+                  <div className="border-t border-gray-100 px-5 py-3 flex gap-3 bg-gray-50">
+                    <button onClick={()=>{if(navigator.share)navigator.share({title:`찬양 콘티: ${s.theme}`,url:location.href}).catch(()=>{});else alert('링크가 복사되었습니다.');}} className="flex-1 flex items-center justify-center gap-2 py-2 bg-gray-900 text-white rounded-xl text-sm font-semibold"><I name="share2" size={15} stroke="#fff"/>공유</button>
+                    <button onClick={()=>{if(confirm('콘티를 삭제하시겠습니까?'))onDeleteSetlist(s.id);}} className="flex-1 flex items-center justify-center gap-2 py-2 border-2 border-red-500 text-red-500 rounded-xl text-sm font-semibold"><I name="trash2" size={15} stroke="#ef4444"/>삭제</button>
+                  </div>
+                </div>
+              ))
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ─── COMMUNITY SCREEN ─── */
+function CommunityScreen({ isLoggedIn, onWritePost, showAlert }) {
+  const [cat,setCat]=useState('전체');
+  const categories=['전체','콘티 공유','찬양 추천','예배 고민','수련회 정보','악보 요청'];
+  const handleWrite=()=>{
+    if(!isLoggedIn){showAlert('로그인이 필요합니다.\n프로필 탭에서 로그인해 주세요.','로그인 필요','info');return;}
+    onWritePost();
+  };
+  return (
+    <div className="h-full bg-gray-50 overflow-y-auto scrollbar-hide">
+      <div className="px-6 py-8 shadow-lg" style={{background:"linear-gradient(135deg,#111827,#1f2937)"}}>
+        <div className="max-w-2xl mx-auto flex justify-between items-center">
+          <h2 className="text-2xl text-white font-bold">커뮤니티</h2>
+          <button onClick={handleWrite} className="px-5 py-2 bg-white text-gray-900 rounded-xl text-sm font-semibold hover:bg-gray-100 transition-colors shadow-md">글쓰기</button>
+        </div>
+      </div>
+      <div className="px-6 py-6 pb-6">
+        <div className="max-w-2xl mx-auto fade-in">
+          {!isLoggedIn&&<div className="bg-blue-50 border-l-4 border-blue-500 rounded-xl p-4 mb-4 text-sm text-gray-700">💡 댓글과 좋아요는 로그인이 필요합니다.</div>}
+          <div className="mb-5">
+            <p className="text-xs text-gray-500 mb-2 font-medium">주제별</p>
+            <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
+              {categories.map(c=>(
+                <button key={c} onClick={()=>setCat(c)} className={`px-4 py-2 rounded-xl text-sm whitespace-nowrap font-medium transition-all ${cat===c?'bg-gray-900 text-white shadow-md':'bg-white border-2 border-gray-200 text-gray-600 hover:border-gray-900'}`}>{c}</button>
+              ))}
+            </div>
+          </div>
+          <div className="bg-white rounded-2xl border-2 border-gray-200 p-12 text-center">
+            <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4"><I name="messageCircle" size={36} stroke="#d1d5db"/></div>
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">아직 게시글이 없습니다</h3>
+            <p className="text-sm text-gray-400 mb-6">첫 번째 게시글을 작성하여 찬양 사역자들과 소통해보세요</p>
+            <button onClick={handleWrite} className="px-6 py-3 text-white rounded-xl font-semibold text-sm hover:opacity-90 transition-opacity" style={{background:"linear-gradient(135deg,#0d9488,#2563eb)"}}>첫 게시글 작성하기</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ─── COMMUNITY POST SCREEN ─── */
+function CommunityPostScreen({ onBack, onPublish }) {
+  const [cat,setCat]=useState('');
+  const [title,setTitle]=useState('');
+  const [content,setContent]=useState('');
+  const [inc,setInc]=useState(false);
+  const cats=['콘티 공유','찬양 추천','예배 고민','수련회 정보','악보 요청'];
+  const valid=cat&&title&&content;
+  return (
+    <div className="h-full bg-gray-50 overflow-y-auto scrollbar-hide">
+      <div className="px-6 py-6 pb-6 pt-8">
+        <div className="max-w-2xl mx-auto">
+          <div className="flex items-center justify-between mb-6">
+            <button onClick={onBack} className="flex items-center gap-1 text-gray-500 hover:text-gray-900 transition-colors"><I name="chevronLeft" size={18} stroke="currentColor"/><span className="text-sm">뒤로가기</span></button>
+            <button onClick={()=>valid&&onPublish({category:cat,title,content,includeSongs:inc})} disabled={!valid} className="px-6 py-2 text-white rounded-xl text-sm font-semibold disabled:opacity-40 disabled:cursor-not-allowed hover:opacity-90 transition-opacity" style={{background:"linear-gradient(135deg,#0d9488,#2563eb)"}}>게시하기</button>
+          </div>
+          <div className="bg-white rounded-2xl border-2 border-gray-200 p-6 space-y-4">
+            <div>
+              <label className="block text-sm text-gray-700 mb-2 font-medium">주제 선택 *</label>
+              <div className="flex gap-2 flex-wrap">
+                {cats.map(c=><button key={c} onClick={()=>setCat(c)} className={`px-4 py-2 rounded-xl text-sm font-medium transition-all ${cat===c?'bg-gray-900 text-white':'bg-white border-2 border-gray-200 text-gray-700 hover:border-gray-900'}`}>{c}</button>)}
+              </div>
+            </div>
+            <div>
+              <label className="block text-sm text-gray-700 mb-2 font-medium">제목 *</label>
+              <input type="text" value={title} onChange={e=>setTitle(e.target.value)} placeholder="제목을 입력하세요" className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl bg-gray-50 text-gray-900 placeholder-gray-400 focus:border-teal-500 focus:outline-none"/>
+            </div>
+            <div>
+              <label className="block text-sm text-gray-700 mb-2 font-medium">내용 *</label>
+              <textarea value={content} onChange={e=>setContent(e.target.value)} placeholder="게시글 내용을 입력하세요..." rows={10} className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl bg-gray-50 text-gray-900 placeholder-gray-400 focus:border-teal-500 focus:outline-none resize-none"/>
+            </div>
+            {cat==='콘티 공유'&&<div className="flex items-center gap-3 p-4 bg-teal-50 border-2 border-teal-200 rounded-xl"><input type="checkbox" id="inc" checked={inc} onChange={e=>setInc(e.target.checked)} className="w-5 h-5"/><label htmlFor="inc" className="text-sm text-gray-700 cursor-pointer">내 콘티에서 찬양 목록 첨부하기</label></div>}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ─── SHEET MUSIC SCREEN (CCM 악보 검색 포털) ─── */
+const BLOGS = [
+  { id:'junseo', name:'준서의 악보창고', blogId:'0909junseo', desc:'CCM 피아노 & 밴드 악보 전문', grad:'from-emerald-500 to-teal-600', light:'bg-emerald-50', border:'border-emerald-200', text:'text-emerald-700', icon:'🎹', tags:['피아노','밴드','CCM'] },
+  { id:'wkdghks', name:'찬양 악보 모음', blogId:'wkdghks38811', desc:'다양한 장르의 찬양 악보 공유', grad:'from-blue-500 to-indigo-600', light:'bg-blue-50', border:'border-blue-200', text:'text-blue-700', icon:'🎼', tags:['찬양','악보','코드'] },
+  { id:'relishsky', name:'릴리쉬스카이 악보', blogId:'relishsky', desc:'예배 찬양 악보 & 코드 모음', grad:'from-purple-500 to-violet-600', light:'bg-purple-50', border:'border-purple-200', text:'text-purple-700', icon:'🎵', tags:['예배','찬양','코드악보'] },
+  { id:'jskyscore', name:'제이스카이 스코어', blogId:'jskyscore', desc:'전문 편곡 악보 & 찬양 자료', grad:'from-rose-500 to-pink-600', light:'bg-rose-50', border:'border-rose-200', text:'text-rose-700', icon:'🎸', tags:['편곡','스코어','전문악보'] },
+];
+
+function SheetMusicScreen({ selectedSong }) {
+  const [query,setQuery]=useState(selectedSong?.title||'');
+  const [submitted,setSubmitted]=useState(!!selectedSong?.title);
+  const getUrl=(blogId,q)=>`https://blog.naver.com/${blogId}?Redirect=Search&keyword=${encodeURIComponent(q)}`;
+
+  const handleSearch=(e)=>{
+    e.preventDefault();
+    if(query.trim()) setSubmitted(true);
+  };
+
+  return (
+    <div className="h-full bg-gray-50 overflow-y-auto scrollbar-hide">
+      <div className="px-6 py-8 shadow-lg" style={{background:"linear-gradient(135deg,#111827,#1f2937)"}}>
+        <div className="max-w-2xl mx-auto">
+          <div className="flex items-center gap-3 mb-1"><I name="music" size={22} stroke="#5eead4"/><h2 className="text-2xl text-white font-bold">CCM 악보 검색</h2></div>
+          <p className="text-sm text-gray-400 mt-1">자주 찾는 악보 블로그 4곳을 한 번에 검색하세요</p>
+        </div>
+      </div>
+      <div className="px-6 py-6 pb-10">
+        <div className="max-w-2xl mx-auto fade-in">
+          <form onSubmit={handleSearch} className="mb-6">
+            <div className="relative flex items-center">
+              <div className="absolute left-4 pointer-events-none"><I name="search" size={18} stroke="#9ca3af"/></div>
+              <input type="text" value={query} onChange={e=>{setQuery(e.target.value);if(!e.target.value.trim())setSubmitted(false);}} placeholder="찾고 싶은 악보 제목을 입력하세요..." className="w-full pl-12 pr-28 py-4 rounded-2xl border-2 border-gray-200 bg-white text-gray-900 placeholder-gray-400 focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-100 transition-all text-sm shadow-sm"/>
+              <button type="submit" disabled={!query.trim()} className="absolute right-2 px-5 py-2.5 bg-gray-900 text-white rounded-xl text-sm font-semibold hover:bg-gray-700 disabled:opacity-40 disabled:cursor-not-allowed transition-all">검색</button>
+            </div>
+          </form>
+          {!submitted && (
+            <div className="text-center py-8">
+              <div className="w-20 h-20 bg-teal-50 rounded-full flex items-center justify-center mx-auto mb-4"><I name="bookOpen" size={36} stroke="#0d9488"/></div>
+              <h3 className="text-gray-800 font-semibold text-lg mb-2">악보를 검색해보세요</h3>
+              <p className="text-sm text-gray-400 mb-8">곡 제목을 입력하면 4개 블로그에서<br/>동시에 검색 결과를 확인할 수 있어요</p>
+              <div className="grid grid-cols-2 gap-3 text-left">
+                {BLOGS.map(b=>(
+                  <div key={b.id} className={`${b.light} ${b.border} border rounded-2xl p-4`}>
+                    <div className="flex items-center gap-2 mb-2"><span className="text-xl">{b.icon}</span><span className={`text-sm font-bold ${b.text}`}>{b.name}</span></div>
+                    <p className="text-xs text-gray-400">{b.desc}</p>
+                    <div className="flex flex-wrap gap-1 mt-2">{b.tags.map(t=><span key={t} className="text-xs bg-white border border-gray-200 text-gray-400 px-2 py-0.5 rounded-full">#{t}</span>)}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          {submitted && query.trim() && (
+            <>
+              <div className="flex items-center justify-between mb-4">
+                <p className="text-sm text-gray-500"><span className="font-semibold text-gray-900">"{query}"</span> 검색 결과 — 4개 블로그</p>
+                <span className="text-xs text-gray-400">클릭하면 블로그로 이동</span>
+              </div>
+              <div className="space-y-3">
+                {BLOGS.map(b=>(
+                  <a key={b.id} href={getUrl(b.blogId,query)} target="_blank" rel="noopener noreferrer" className="block bg-white rounded-2xl border-2 border-gray-100 hover:border-teal-400 hover:shadow-md transition-all overflow-hidden group">
+                    <div className="flex items-stretch">
+                      <div className={`bg-gradient-to-b ${b.grad} w-16 flex items-center justify-center flex-shrink-0`}><span className="text-2xl">{b.icon}</span></div>
+                      <div className="flex-1 p-4">
+                        <div className="flex items-start justify-between">
+                          <div>
+                            <h4 className="font-bold text-gray-900 group-hover:text-teal-700 transition-colors">{b.name}</h4>
+                            <p className="text-xs text-gray-400 mt-0.5">{b.desc}</p>
+                          </div>
+                          <I name="externalLink" size={16} stroke="#d1d5db" className="group-hover:text-teal-500 mt-1"/>
+                        </div>
+                        <div className={`mt-3 ${b.light} ${b.border} border rounded-xl px-3 py-2`}>
+                          <p className="text-xs text-gray-400 mb-0.5">검색어</p>
+                          <p className={`text-sm font-semibold ${b.text}`}>"{query}" 악보 검색하기</p>
+                        </div>
+                        <div className="flex items-center gap-1 mt-3">
+                          <span className="text-xs text-gray-300">blog.naver.com/{b.blogId}</span>
+                          <div className="flex gap-1 ml-auto">{b.tags.map(t=><span key={t} className="text-xs bg-gray-100 text-gray-400 px-2 py-0.5 rounded-full">#{t}</span>)}</div>
+                        </div>
+                      </div>
+                    </div>
+                  </a>
+                ))}
+              </div>
+              <div className="mt-5 p-4 bg-gray-100 rounded-2xl text-center">
+                <p className="text-xs text-gray-400 mb-3">위 블로그에서 찾지 못하셨나요?</p>
+                <a href={`https://search.naver.com/search.naver?query=${encodeURIComponent(query+' CCM 악보')}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 px-5 py-2.5 bg-green-500 text-white rounded-xl text-sm font-semibold hover:bg-green-600 transition-colors">
+                  <I name="search" size={16} stroke="#fff"/>네이버에서 전체 검색하기
+                </a>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ─── PROFILE SCREEN ─── */
+function ProfileScreen({ isLoggedIn, onLogin, onLogout }) {
+  const [email,setEmail]=useState('');
+  const [pw,setPw]=useState('');
+  const [err,setErr]=useState('');
+  const [loggedEmail,setLoggedEmail]=useState('');
+  const ADMIN='wtokr@naver.com', APW='gurwls369!';
+
+  const doLogin=()=>{
+    if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){setErr('올바른 이메일 형식이 아닙니다.');return;}
+    if(email===ADMIN&&pw===APW){setLoggedEmail(email);onLogin();setErr('');}
+    else setErr('이메일 또는 비밀번호가 일치하지 않습니다.');
+  };
+
+  const doLogout=()=>{ setLoggedEmail('');setEmail('');setPw('');onLogout(); };
+
+  if(!isLoggedIn) return (
+    <div className="h-full flex items-center justify-center px-6 overflow-y-auto relative" style={{background:"linear-gradient(135deg,#111827,#1f2937,#000)"}}>
+      <div className="absolute top-0 right-0 w-96 h-96 rounded-full blur-3xl" style={{background:"rgba(20,184,166,0.06)"}}/>
+      <div className="w-full max-w-sm py-12 relative z-10 fade-in">
+        <div className="mb-8"><Logo size="md"/></div>
+        <div className="bg-white/95 backdrop-blur-sm rounded-2xl shadow-2xl p-8 border border-gray-200">
+          <h2 className="text-xl mb-6 text-gray-900 font-bold">로그인</h2>
+          <div className="space-y-4 mb-5">
+            <div>
+              <label className="block text-sm text-gray-700 mb-2 font-medium">이메일</label>
+              <input type="email" value={email} onChange={e=>{setEmail(e.target.value);setErr('');}} placeholder="example@email.com" className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl bg-gray-50 text-gray-900 placeholder-gray-400 focus:border-teal-500 focus:outline-none transition-colors"/>
+            </div>
+            <div>
+              <label className="block text-sm text-gray-700 mb-2 font-medium">비밀번호</label>
+              <input type="password" value={pw} onChange={e=>{setPw(e.target.value);setErr('');}} onKeyDown={e=>e.key==='Enter'&&doLogin()} placeholder="••••••••" className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl bg-gray-50 text-gray-900 placeholder-gray-400 focus:border-teal-500 focus:outline-none transition-colors"/>
+            </div>
+          </div>
+          {err&&<div className="mb-4 p-3 bg-red-50 border-2 border-red-200 rounded-xl text-sm text-red-700">{err}</div>}
+          <button onClick={doLogin} className="w-full py-3 bg-gray-900 text-white rounded-xl font-semibold mb-3 hover:bg-gray-800 transition-colors shadow-lg">로그인</button>
+          <button className="w-full py-3 border-2 border-gray-200 text-gray-700 rounded-xl font-semibold hover:border-gray-900 transition-colors">회원가입</button>
+        </div>
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="h-full bg-gray-50 overflow-y-auto scrollbar-hide">
+      <div className="px-6 py-8 shadow-lg" style={{background:"linear-gradient(135deg,#111827,#1f2937)"}}>
+        <div className="max-w-2xl mx-auto flex items-center gap-4">
+          <div className="w-14 h-14 bg-white rounded-full flex items-center justify-center shadow-lg"><span className="text-xl text-gray-900 font-bold">{loggedEmail.slice(0,1).toUpperCase()||'U'}</span></div>
+          <div><p className="text-xs text-gray-400">환영합니다</p><p className="text-base text-white font-bold">{loggedEmail||'사용자'}</p></div>
+        </div>
+      </div>
+      <div className="px-6 py-6">
+        <div className="max-w-2xl mx-auto space-y-4 fade-in">
+          {[
+            {title:'설정', items:[{icon:'bell',label:'알림 설정',sub:'푸시 알림 및 이메일 설정'},{icon:'settings',label:'계정 설정',sub:'프로필 및 보안 설정'}]},
+            {title:'도움말', items:[{icon:'help',label:'FAQ',sub:'자주 묻는 질문'},{icon:'info',label:'Wolea 소개',sub:'서비스 안내 및 요금제'}]},
+          ].map(sec=>(
+            <div key={sec.title} className="bg-white rounded-2xl shadow-lg overflow-hidden border border-gray-200">
+              <div className="px-6 py-3" style={{background:"linear-gradient(135deg,#1f2937,#374151)"}}><p className="text-sm text-white font-semibold">{sec.title}</p></div>
+              <div className="divide-y divide-gray-100">
+                {sec.items.map(item=>(
+                  <button key={item.label} className="w-full p-5 flex items-center gap-4 hover:bg-gray-50 transition-colors">
+                    <div className="w-10 h-10 bg-gray-100 rounded-xl flex items-center justify-center"><I name={item.icon} size={18} stroke="#374151"/></div>
+                    <div className="text-left"><p className="text-gray-900 font-semibold text-sm">{item.label}</p><p className="text-xs text-gray-400">{item.sub}</p></div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          ))}
+          <button onClick={doLogout} className="w-full p-5 bg-white rounded-2xl shadow-lg border-2 border-red-400 flex items-center justify-center gap-3 hover:bg-red-50 transition-colors">
+            <I name="logout" size={18} stroke="#ef4444"/><span className="text-red-500 font-semibold">로그아웃</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ─── MAIN APP ─── */
+function App() {
+  const [activeTab,setActiveTab]=useState('ai');
+  const [screen,setScreen]=useState('welcome');
+  const [isLoggedIn,setIsLoggedIn]=useState(false);
+  const [medData,setMedData]=useState({input:''});
+  const [worshipData,setWorshipData]=useState(null);
+  const [savedSetlists,setSavedSetlists]=useState([]);
+  const [deletedSetlists,setDeletedSetlists]=useState([]);
+  const [selectedSetlistId,setSelectedSetlistId]=useState(null);
+  const [selectedSheet,setSelectedSheet]=useState(null);
+  const [guidanceCountdown,setGuidanceCountdown]=useState(null);
+  const [communityView,setCommunityView]=useState('list');
+  const [alert,setAlert]=useState({isOpen:false,message:''});
+
+  const showAlert=(message,title,type='info')=>setAlert({isOpen:true,title,message,type});
+  const closeAlert=()=>setAlert(a=>({...a,isOpen:false}));
+
+  const handleTabChange=(tab)=>{
+    if(tab==='music'&&!isLoggedIn){showAlert('악보 탭은 로그인이 필요합니다.','로그인 필요','info');setActiveTab('profile');return;}
+    setActiveTab(tab);
+    if(tab==='community')setCommunityView('list');
+    if(tab==='ai'&&screen!=='result'&&screen!=='guidance'&&screen!=='generating')setScreen('welcome');
+  };
+
+  const handleWorshipSubmit=(data)=>{
+    setWorshipData(data);setScreen('generating');
+    setTimeout(()=>{
+      setScreen('result');
+      const ns={id:Date.now().toString(),date:new Date().toLocaleDateString('ko-KR'),serviceType:data.serviceType,theme:data.theme,meditationData:medData,worshipData:data,createdAt:Date.now()};
+      setSavedSetlists(prev=>[ns,...prev]);
+    },3000);
+  };
+
+  const handleStartOver=()=>{setMedData({input:''});setWorshipData(null);setSelectedSetlistId(null);setGuidanceCountdown(null);setScreen('welcome');};
+
+  const handleRegenerate=()=>{
+    setScreen('generating');
+    setTimeout(()=>{
+      setScreen('result');
+      const ns={id:Date.now().toString(),date:new Date().toLocaleDateString('ko-KR'),serviceType:worshipData?.serviceType||'',theme:worshipData?.theme||'',meditationData:medData,worshipData:worshipData,createdAt:Date.now()};
+      setSavedSetlists(prev=>[ns,...prev]);
+    },3000);
+  };
+
+  const handleViewSheetMusic=(title,artist)=>{
+    if(!isLoggedIn){showAlert('악보 탭은 로그인이 필요합니다.','로그인 필요','info');setActiveTab('profile');return;}
+    setSelectedSheet({title,artist});setActiveTab('music');
+  };
+
+  const handleViewSetlist=(id)=>{
+    const s=savedSetlists.find(x=>x.id===id);
+    if(s){setSelectedSetlistId(id);setMedData(s.meditationData);setWorshipData(s.worshipData);setScreen('result');setActiveTab('ai');}
+  };
+
+  const handleDeleteSetlist=(id)=>{
+    const s=savedSetlists.find(x=>x.id===id);
+    if(s){setDeletedSetlists(prev=>[{...s,deletedAt:Date.now()},...prev]);setSavedSetlists(prev=>prev.filter(x=>x.id!==id));if(selectedSetlistId===id){setSelectedSetlistId(null);handleStartOver();}}
+  };
+
+  const renderContent=()=>{
+    if(activeTab==='ai'){
+      if(screen==='welcome') return <WelcomeScreen onContinue={()=>setScreen('meditation')}/>;
+      if(screen==='meditation') return <MeditationInputScreen onSubmit={input=>{setMedData({input});setScreen('guidance');setGuidanceCountdown(60);}}/>;
+      if(screen==='guidance') return <MeditationGuidanceScreen onContinue={()=>{if(!isLoggedIn){showAlert('로그인이 필요합니다.\n프로필 탭에서 로그인해 주세요.','로그인 필요','info');setActiveTab('profile');return;}setScreen('worship-info');}} onBack={()=>setScreen('meditation')} countdown={guidanceCountdown} setCountdown={setGuidanceCountdown} meditationInput={medData.input}/>;
+      if(screen==='worship-info') return <WorshipInfoScreen onSubmit={handleWorshipSubmit}/>;
+      if(screen==='generating') return <GeneratingScreen/>;
+      if(screen==='result') return <SetlistResultScreen meditationData={medData} worshipData={worshipData} onStartOver={handleStartOver} onRegenerate={handleRegenerate} onViewSheetMusic={handleViewSheetMusic} onEditSetlist={prompt=>{setScreen('generating');setTimeout(()=>{setScreen('result');showAlert(`"${prompt}" 프롬프트로 콘티가 수정되었습니다.`,'콘티 수정 완료','success');},2000);}}/>;
+    }
+    if(activeTab==='setlists') return <MySetlistsScreen setlists={savedSetlists} deletedSetlists={deletedSetlists} onViewSetlist={handleViewSetlist} onDeleteSetlist={handleDeleteSetlist} onRestoreSetlist={id=>{const s=deletedSetlists.find(x=>x.id===id);if(s){const{deletedAt,...r}=s;setSavedSetlists(prev=>[r,...prev]);setDeletedSetlists(prev=>prev.filter(x=>x.id!==id));}}} onPermanentDelete={id=>setDeletedSetlists(prev=>prev.filter(x=>x.id!==id))} isLoggedIn={isLoggedIn}/>;
+    if(activeTab==='community') return communityView==='post' ? <CommunityPostScreen onBack={()=>setCommunityView('list')} onPublish={post=>{showAlert(`제목: ${post.title}`,'게시글이 발행되었습니다!','success');setCommunityView('list');}}/> : <CommunityScreen isLoggedIn={isLoggedIn} onWritePost={()=>setCommunityView('post')} showAlert={showAlert}/>;
+    if(activeTab==='music') return <SheetMusicScreen selectedSong={selectedSheet}/>;
+    if(activeTab==='profile') return <ProfileScreen isLoggedIn={isLoggedIn} onLogin={()=>setIsLoggedIn(true)} onLogout={()=>{setIsLoggedIn(false);setSavedSetlists([]);}} />;
+    return null;
+  };
+
+  return (
+    <div className="h-screen overflow-hidden bg-gray-50" style={{maxWidth:'480px',margin:'0 auto',position:'relative'}}>
+      <div style={{height:'calc(100vh - 5rem)',overflowY:'auto'}} className="scrollbar-hide">
+        {renderContent()}
+      </div>
+      <BottomNav activeTab={activeTab} onTabChange={handleTabChange}/>
+      <CustomAlert {...alert} onClose={closeAlert}/>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+</body>
+</html>
