@@ -1,71 +1,78 @@
 export default async function handler(req, res) {
-  // CORS 허용
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-
-  if (req.method === 'OPTIONS') {
-    return res.status(200).end();
-  }
+  
+  if (req.method === 'OPTIONS') return res.status(200).end();
 
   const { query, blogId } = req.query;
-
-  if (!query || !blogId) {
-    return res.status(400).json({ error: 'query와 blogId가 필요합니다.' });
-  }
+  if (!query || !blogId) return res.status(400).json({ error: '파라미터 누락' });
 
   const CLIENT_ID = process.env.NAVER_CLIENT_ID;
   const CLIENT_SECRET = process.env.NAVER_CLIENT_SECRET;
 
   try {
-    // 💡 해결책: 네이버 API는 site: 문법을 지원하지 않음. 
-    // 대신 블로그 고유의 '이름(닉네임)'을 검색어에 강제로 붙여서 해당 블로그 글을 Top 100으로 끌어올림!
-    const blogKeywords = {
-      '0909junseo': '준서',
-      'wkdghks38811': '찬양',
-      'relishsky': '릴리쉬스카이',
-      'jskyscore': '제이스카이'
+    const uniqueMap = new Map();
+
+    const addItems = (items) => {
+      for (const item of items) {
+        const link = item.link.replace('m.blog.naver.com', 'blog.naver.com');
+        if (!uniqueMap.has(link)) {
+          uniqueMap.set(link, {
+            title: item.title.replace(/<[^>]*>/g, '').trim(),
+            link: link,
+            description: item.description ? item.description.replace(/<[^>]*>/g, '').trim() : '',
+            postdate: item.postdate || ''
+          });
+        }
+      }
     };
 
-    const keyword = blogKeywords[blogId] || '';
-    
-    // 곡 제목은 반드시 포함되도록 쌍따옴표("")로 묶고, 뒤에 악보와 블로그 이름을 붙임
-    const optimizedQuery = keyword ? `"${query}" 악보 ${keyword}` : `"${query}" 악보`;
-    const searchQuery = encodeURIComponent(optimizedQuery);
-    
-    // 네이버 전체 블로그 중 위 조건에 맞는 글 100개를 쓸어담음
-    const apiUrl = `https://openapi.naver.com/v1/search/blog.json?query=${searchQuery}&display=100&sort=sim`;
+    // [1단계] 네이버 웹문서 API로 정밀 타겟팅 검색 (site: 문법)
+    try {
+      const webUrl = `https://openapi.naver.com/v1/search/webkr.json?query=${encodeURIComponent(`site:blog.naver.com/${blogId} ${query}`)}&display=15`;
+      const webRes = await fetch(webUrl, { headers: { 'X-Naver-Client-Id': CLIENT_ID, 'X-Naver-Client-Secret': CLIENT_SECRET } });
+      if (webRes.ok) {
+        const webData = await webRes.json();
+        addItems((webData.items || []).filter(i => i.link.includes(blogId)));
+      }
+    } catch (e) {}
 
-    const response = await fetch(apiUrl, {
-      headers: {
-        'X-Naver-Client-Id': CLIENT_ID,
-        'X-Naver-Client-Secret': CLIENT_SECRET,
-      },
-    });
-
-    if (!response.ok) {
-      throw new Error(`네이버 API 오류: ${response.status}`);
+    // [2단계: 핵심] API가 못 찾으면 앱이 직접 블로그에 들어가서 검색 결과를 긁어옴(크롤링)
+    if (uniqueMap.size === 0) {
+      try {
+        const htmlRes = await fetch(`https://m.blog.naver.com/PostSearchList.naver?blogId=${blogId}&searchText=${encodeURIComponent(query)}`, {
+          headers: { 'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 15_0 like Mac OS X)' }
+        });
+        
+        if (htmlRes.ok) {
+          const html = await htmlRes.text();
+          // 블로그 검색창의 링크와 제목을 정규식으로 강제 추출
+          const regex = new RegExp(`href="\\/${blogId}\\/(\\d+)"[^>]*>(.*?)<\\/a>`, 'gis');
+          let match;
+          
+          while ((match = regex.exec(html)) !== null) {
+            const logNo = match[1];
+            const innerHtml = match[2];
+            
+            const titleMatch = innerHtml.match(/<strong[^>]*>(.*?)<\/strong>/is) || innerHtml.match(/<span[^>]*class="ell"[^>]*>(.*?)<\/span>/is);
+            let title = titleMatch ? titleMatch[1].replace(/<[^>]*>/g, '').trim() : `${query} 관련 악보`;
+            
+            const link = `https://blog.naver.com/${blogId}/${logNo}`;
+            if (!uniqueMap.has(link)) {
+              uniqueMap.set(link, { title, link, description: '블로그 검색에서 직접 찾은 악보입니다.', postdate: '' });
+            }
+          }
+        }
+      } catch (e) {}
     }
 
-    const data = await response.json();
-
-    // 100개 중에서 진짜 해당 블로그(blogId)의 주소에서 쓴 글만 완벽하게 필터링
-    const filtered = (data.items || []).filter(item => 
-      (item.link && item.link.includes(blogId)) || 
-      (item.bloggerlink && item.bloggerlink.includes(blogId))
-    );
+    const finalItems = Array.from(uniqueMap.values()).slice(0, 5);
 
     return res.status(200).json({
       blogId,
-      total: filtered.length,
-      hasResults: filtered.length > 0,
-      // 프론트엔드로는 제일 연관도 높은 상위 5개만 전송
-      items: filtered.slice(0, 5).map(item => ({
-        title: item.title.replace(/<[^>]*>/g, ''), // 불필요한 HTML 태그 제거
-        link: item.link,
-        description: item.description.replace(/<[^>]*>/g, ''),
-        postdate: item.postdate,
-      })),
+      total: finalItems.length,
+      hasResults: finalItems.length > 0,
+      items: finalItems
     });
   } catch (error) {
     return res.status(500).json({ error: error.message });
