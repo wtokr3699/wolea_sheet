@@ -904,8 +904,8 @@ function App() {
     }
   };
 
+// 1. 하단 네비게이션 탭 변경 로직 (음표 아이콘 클릭 시 제한 해제)
   const handleTabChange=(tab)=>{
-    if(tab==='music'&&!isLoggedIn){showAlert('악보 탭은 로그인이 필요합니다.','로그인 필요','info');setActiveTab('profile');return;}
     setActiveTab(tab);
     if(tab==='community')setCommunityView('list');
     if(tab==='ai'&&screen!=='result'&&screen!=='guidance'&&screen!=='generating')setScreen('welcome');
@@ -920,9 +920,10 @@ function App() {
 
   const handleRegenerate=()=>{generateSetlistFromAPI(worshipData, medData);};
 
+// 2. 콘티 화면에서 악보 보기 버튼 눌렀을 때 로직 (제한 해제)
   const handleViewSheetMusic=(title,artist)=>{
-    if(!isLoggedIn){showAlert('악보 탭은 로그인이 필요합니다.','로그인 필요','info');setActiveTab('profile');return;}
-    setSelectedSheet({title,artist});setActiveTab('music');
+    setSelectedSheet({title,artist});
+    setActiveTab('music');
   };
 
   const handleViewSetlist=(id)=>{
