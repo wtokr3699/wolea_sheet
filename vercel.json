@@ -1,0 +1,39 @@
+# WOLEA AI — Vercel 배포 가이드
+
+## 파일 구조
+```
+wolea-deploy/
+├── api/
+│   └── search.js     ← 네이버 API 서버리스 함수
+├── index.html         ← 앱 본체
+├── vercel.json        ← Vercel 설정
+└── README.md
+```
+
+## 배포 순서
+
+### 1. GitHub에 올리기
+1. [https://github.com](https://github.com) 로그인
+2. 우측 상단 **+** → **New repository**
+3. 이름: `wolea-ai` (비공개 권장: Private)
+4. **Create repository** 클릭
+5. 이 폴더 안의 파일을 모두 업로드 (Upload files)
+
+### 2. Vercel 배포
+1. [https://vercel.com](https://vercel.com) 접속 → GitHub으로 로그인
+2. **New Project** → GitHub 저장소 `wolea-ai` 선택
+3. **Import** 클릭
+4. **Environment Variables** 섹션에서 아래 두 개 추가:
+   - `NAVER_CLIENT_ID` = 네이버 Client ID
+   - `NAVER_CLIENT_SECRET` = 네이버 Client Secret
+5. **Deploy** 클릭
+
+### 3. 네이버 앱 URL 업데이트
+배포 완료 후 Vercel이 URL을 발급해줘요 (예: `https://wolea-ai.vercel.app`)
+1. [https://developers.naver.com/apps](https://developers.naver.com/apps) 접속
+2. 해당 앱 → **수정**
+3. 서비스 URL에 Vercel URL 추가
+4. 저장
+
+## 완료!
+이제 악보 검색 시 실제로 해당 블로그에 포스팅이 있는 경우에만 결과가 표시됩니다.
