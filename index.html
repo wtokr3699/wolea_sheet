@@ -762,12 +762,14 @@ function ProfileScreen({ isLoggedIn, onLogin, onLogout }) {
   const [pw,setPw]=useState('');
   const [err,setErr]=useState('');
   const [loggedEmail,setLoggedEmail]=useState('');
-  const ADMIN='12345', APW='12345';
+  
+  // 테스트용 계정 변경: 아이디 1234 / 비밀번호 1234
+  const ADMIN='1234', APW='1234';
 
   const doLogin=()=>{
-    if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){setErr('올바른 이메일 형식이 아닙니다.');return;}
+    // 이메일 형식 검사 로직 제거 (1234도 입력 가능하도록 변경)
     if(email===ADMIN&&pw===APW){setLoggedEmail(email);onLogin();setErr('');}
-    else setErr('이메일 또는 비밀번호가 일치하지 않습니다.');
+    else setErr('아이디 또는 비밀번호가 일치하지 않습니다.');
   };
 
   const doLogout=()=>{ setLoggedEmail('');setEmail('');setPw('');onLogout(); };
@@ -781,8 +783,8 @@ function ProfileScreen({ isLoggedIn, onLogin, onLogout }) {
           <h2 className="text-xl mb-6 text-gray-900 font-bold">로그인</h2>
           <div className="space-y-4 mb-5">
             <div>
-              <label className="block text-sm text-gray-700 mb-2 font-medium">이메일</label>
-              <input type="email" value={email} onChange={e=>{setEmail(e.target.value);setErr('');}} placeholder="example@email.com" className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl bg-gray-50 text-gray-900 placeholder-gray-400 focus:border-teal-500 focus:outline-none transition-colors"/>
+              <label className="block text-sm text-gray-700 mb-2 font-medium">아이디</label>
+              <input type="text" value={email} onChange={e=>{setEmail(e.target.value);setErr('');}} placeholder="1234" className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl bg-gray-50 text-gray-900 placeholder-gray-400 focus:border-teal-500 focus:outline-none transition-colors"/>
             </div>
             <div>
               <label className="block text-sm text-gray-700 mb-2 font-medium">비밀번호</label>
